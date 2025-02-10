@@ -19,7 +19,7 @@ func NewUserPostgresRepository(db *sql.DB) *UserPostgresRepository {
 
 func (repo *UserPostgresRepository) Create(user *model.User) (*model.User, error) {
 	err := repo.DB.
-		QueryRow("SELECT 1 FROM user WHERE username = ?", user.Username).Scan(new(int))
+		QueryRow("SELECT 1 FROM users WHERE username = $1", user.Username).Scan(new(int))
 	if err == nil {
 		return nil, entity.ErrAlreadyCreated
 	}
@@ -28,13 +28,8 @@ func (repo *UserPostgresRepository) Create(user *model.User) (*model.User, error
 		return nil, err
 	}
 
-	result, err := repo.DB.
-		Exec("INSERT INTO user ('username', 'password_hash') VALUES (?, ?)", user.Username, user.PasswordHash)
-	if err != nil {
-		return nil, err
-	}
-
-	lastID, err := result.LastInsertId()
+	var lastID uint
+	err = repo.DB.QueryRow("INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id", user.Username, user.PasswordHash).Scan(&lastID)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +47,7 @@ func (repo *UserPostgresRepository) GetById(id uint) (*model.User, error) {
 	user := model.User{}
 
 	err := repo.DB.
-		QueryRow("SELECT id, username, password_hash FROM user WHERE id = ?", id).
+		QueryRow("SELECT id, username, password_hash FROM users WHERE id = $1", id).
 		Scan(&user.ID, &user.Username, &user.PasswordHash)
 	if err == sql.ErrNoRows {
 		return nil, entity.ErrAlreadyCreated
