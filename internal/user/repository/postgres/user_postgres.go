@@ -5,6 +5,8 @@ import (
 
 	"github.com/lightlink/user-service/internal/user/domain/entity"
 	"github.com/lightlink/user-service/internal/user/domain/model"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UserPostgresRepository struct {
@@ -17,7 +19,7 @@ func NewUserPostgresRepository(db *sql.DB) *UserPostgresRepository {
 	}
 }
 
-func (repo *UserPostgresRepository) Create(user *model.User) (*model.User, error) {
+func (repo *UserPostgresRepository) Create(user *entity.User) (*model.User, error) {
 	err := repo.DB.
 		QueryRow("SELECT 1 FROM users WHERE username = $1", user.Username).Scan(new(int))
 	if err == nil {
@@ -28,19 +30,15 @@ func (repo *UserPostgresRepository) Create(user *model.User) (*model.User, error
 		return nil, err
 	}
 
-	var lastID uint
-	err = repo.DB.QueryRow("INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id", user.Username, user.PasswordHash).Scan(&lastID)
+	createdUser := model.User{}
+	err = repo.DB.QueryRow(
+		"INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username, password_hash",
+		user.Username, user.PasswordHash).Scan(&createdUser.ID, &createdUser.Username, &createdUser.PasswordHash)
 	if err != nil {
 		return nil, err
 	}
 
-	createdUser := &model.User{
-		ID:           uint(lastID),
-		Username:     user.Username,
-		PasswordHash: user.PasswordHash,
-	}
-
-	return createdUser, nil
+	return &createdUser, nil
 }
 
 func (repo *UserPostgresRepository) GetById(id uint) (*model.User, error) {
@@ -50,7 +48,22 @@ func (repo *UserPostgresRepository) GetById(id uint) (*model.User, error) {
 		QueryRow("SELECT id, username, password_hash FROM users WHERE id = $1", id).
 		Scan(&user.ID, &user.Username, &user.PasswordHash)
 	if err == sql.ErrNoRows {
-		return nil, entity.ErrAlreadyCreated
+		return nil, status.Error(codes.NotFound, "can't find such user")
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (repo *UserPostgresRepository) GetByUsername(username string) (*model.User, error) {
+	user := model.User{}
+
+	err := repo.DB.
+		QueryRow("SELECT id, username, password_hash FROM users WHERE username = $1", username).
+		Scan(&user.ID, &user.Username, &user.PasswordHash)
+	if err == sql.ErrNoRows {
+		return nil, status.Error(codes.NotFound, "can't find such user")
 	} else if err != nil {
 		return nil, err
 	}

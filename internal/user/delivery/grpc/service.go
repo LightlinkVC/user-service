@@ -20,8 +20,7 @@ func NewUserService(uc usecase.UserUsecaseI) *UserService {
 }
 
 func (us *UserService) CreateUser(ctx context.Context, createRequest *proto.CreateUserRequest) (*proto.GetUserResponse, error) {
-	userEntity := dto.CreateUserProtoToEntity(createRequest)
-	createdUserEntity, err := us.userUC.Create(userEntity)
+	createdUserEntity, err := us.userUC.Create(createRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +32,17 @@ func (us *UserService) CreateUser(ctx context.Context, createRequest *proto.Crea
 
 func (us *UserService) GetUserById(ctx context.Context, getRequest *proto.GetUserByIdRequest) (*proto.GetUserResponse, error) {
 	userEntity, err := us.userUC.GetById(uint(getRequest.Id))
+	if err != nil {
+		return nil, err
+	}
+
+	getResponse := dto.EntityToGetUserProto(userEntity)
+
+	return getResponse, nil
+}
+
+func (us *UserService) GetUserByUsername(ctx context.Context, getRequest *proto.GetUserByUsernameRequest) (*proto.GetUserResponse, error) {
+	userEntity, err := us.userUC.GetByUsername(getRequest.Username)
 	if err != nil {
 		return nil, err
 	}

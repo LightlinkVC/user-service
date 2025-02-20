@@ -4,11 +4,13 @@ import (
 	"github.com/lightlink/user-service/internal/user/domain/dto"
 	"github.com/lightlink/user-service/internal/user/domain/entity"
 	"github.com/lightlink/user-service/internal/user/repository"
+	proto "github.com/lightlink/user-service/protogen/user"
 )
 
 type UserUsecaseI interface {
-	Create(userEntity *entity.User) (*entity.User, error)
+	Create(createUserRequest *proto.CreateUserRequest) (*entity.User, error)
 	GetById(id uint) (*entity.User, error)
+	GetByUsername(username string) (*entity.User, error)
 }
 
 type UserUsecase struct {
@@ -21,13 +23,13 @@ func NewUserUsecase(repo repository.UserRepositoryI) *UserUsecase {
 	}
 }
 
-func (uc *UserUsecase) Create(userEntity *entity.User) (*entity.User, error) {
-	userModel, err := dto.EntityToModel(userEntity)
+func (uc *UserUsecase) Create(createUserRequest *proto.CreateUserRequest) (*entity.User, error) {
+	userEntity, err := dto.CreateUserProtoToEntity(createUserRequest)
 	if err != nil {
 		return nil, err
 	}
 
-	createdUserModel, err := uc.userRepo.Create(userModel)
+	createdUserModel, err := uc.userRepo.Create(userEntity)
 	if err != nil {
 		return nil, err
 	}
@@ -39,6 +41,17 @@ func (uc *UserUsecase) Create(userEntity *entity.User) (*entity.User, error) {
 
 func (uc *UserUsecase) GetById(id uint) (*entity.User, error) {
 	userModel, err := uc.userRepo.GetById(id)
+	if err != nil {
+		return nil, err
+	}
+
+	userEntity := dto.ModelToEntity(userModel)
+
+	return userEntity, nil
+}
+
+func (uc *UserUsecase) GetByUsername(username string) (*entity.User, error) {
+	userModel, err := uc.userRepo.GetByUsername(username)
 	if err != nil {
 		return nil, err
 	}
