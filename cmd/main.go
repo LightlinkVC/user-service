@@ -13,11 +13,14 @@ import (
 	friendshipDelivery "github.com/lightlink/user-service/internal/friendship/delivery/http"
 	friendshipRepo "github.com/lightlink/user-service/internal/friendship/repository/postgres"
 	friendshipUC "github.com/lightlink/user-service/internal/friendship/usecase"
+	groupRepo "github.com/lightlink/user-service/internal/group/repository/grpc"
 	service "github.com/lightlink/user-service/internal/user/delivery/grpc"
 	userRepo "github.com/lightlink/user-service/internal/user/repository/postgres"
 	userUC "github.com/lightlink/user-service/internal/user/usecase"
-	proto "github.com/lightlink/user-service/protogen/user"
+	protoGroup "github.com/lightlink/user-service/protogen/group"
+	protoUser "github.com/lightlink/user-service/protogen/user"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -40,14 +43,18 @@ func startGRPC() {
 	if err != nil {
 		log.Fatalf("Ошибка при подключении к БД: %v", err)
 	}
-	defer postgresConnect.Close()
+	defer func() {
+		if err = postgresConnect.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	userRepository := userRepo.NewUserPostgresRepository(postgresConnect)
 
 	userUsecase := userUC.NewUserUsecase(userRepository)
 	userService := service.NewUserService(userUsecase)
 
-	proto.RegisterUserServiceServer(grpcServer, userService)
+	protoUser.RegisterUserServiceServer(grpcServer, userService)
 
 	fmt.Println("gRPC сервер запущен на порту :8081")
 	log.Fatal(grpcServer.Serve(listener))
@@ -60,15 +67,30 @@ func startHTTP() {
 	if err != nil {
 		log.Fatalf("Ошибка при подключении к БД: %v", err)
 	}
-	defer postgresConnect.Close()
+	defer func() {
+		if err = postgresConnect.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	client, _ := grpc.Dial(
+		fmt.Sprintf("%s:%s", os.Getenv("GROUP_SERVICE_HOST"), os.Getenv("GROUP_SERVICE_PORT")),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	groupServiceClient := protoGroup.NewGroupServiceClient(client)
 
 	userRepository := userRepo.NewUserPostgresRepository(postgresConnect)
 	friendshipRepository := friendshipRepo.NewFriendshipPostgresRepository(postgresConnect)
+	groupRepository := groupRepo.NewGroupGrpcRepository(&groupServiceClient)
 
-	friendshipUsecase := friendshipUC.NewFriendshipUsecase(userRepository, friendshipRepository)
+	friendshipUsecase := friendshipUC.NewFriendshipUsecase(userRepository, friendshipRepository, groupRepository)
 	friendshipHandler := friendshipDelivery.NewFriendshipHandler(friendshipUsecase)
 
 	router.HandleFunc("/api/friend-request", friendshipHandler.SendFriendRequest).Methods("POST")
+	router.HandleFunc("/api/accept-friend-request", friendshipHandler.AcceptFriendRequest).Methods("POST")
+	router.HandleFunc("/api/decline-friend-request", friendshipHandler.DeclineFriendRequest).Methods("POST")
+	router.HandleFunc("/api/pending-requests", friendshipHandler.GetPendingRequests).Methods("GET")
+	router.HandleFunc("/api/friend-list", friendshipHandler.GetFriendList).Methods("GET")
 
 	fmt.Println("HTTP сервер запущен на порту :8083")
 	log.Fatal(http.ListenAndServe(":8083", router))
