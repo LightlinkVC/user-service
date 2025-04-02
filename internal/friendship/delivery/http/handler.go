@@ -182,6 +182,7 @@ func (h *FriendshipHandler) GetFriendList(w http.ResponseWriter, r *http.Request
 
 func (h *FriendshipHandler) GetPendingRequests(w http.ResponseWriter, r *http.Request) {
 	userIDString := r.Header.Get("X-User-ID")
+	fmt.Printf("Getting pending reqeusts for user with id: %s\n", userIDString)
 	userID64, err := strconv.ParseUint(userIDString, 10, 32)
 	if err != nil {
 		/*Handle*/

@@ -14,7 +14,9 @@ import (
 	friendshipRepo "github.com/lightlink/user-service/internal/friendship/repository/postgres"
 	friendshipUC "github.com/lightlink/user-service/internal/friendship/usecase"
 	groupRepo "github.com/lightlink/user-service/internal/group/repository/grpc"
+	notificationRepo "github.com/lightlink/user-service/internal/notification/repository/kafka"
 	service "github.com/lightlink/user-service/internal/user/delivery/grpc"
+	userDelivery "github.com/lightlink/user-service/internal/user/delivery/http"
 	userRepo "github.com/lightlink/user-service/internal/user/repository/postgres"
 	userUC "github.com/lightlink/user-service/internal/user/usecase"
 	protoGroup "github.com/lightlink/user-service/protogen/group"
@@ -82,15 +84,32 @@ func startHTTP() {
 	userRepository := userRepo.NewUserPostgresRepository(postgresConnect)
 	friendshipRepository := friendshipRepo.NewFriendshipPostgresRepository(postgresConnect)
 	groupRepository := groupRepo.NewGroupGrpcRepository(&groupServiceClient)
+	notificationRepository, err := notificationRepo.NewNotificationKafkaRepository(
+		"kafka:29092",
+		// "notification-group",
+		"notifications",
+		"http://schema_registry:9091",
+	)
+	if err != nil {
+		panic(err)
+	}
 
-	friendshipUsecase := friendshipUC.NewFriendshipUsecase(userRepository, friendshipRepository, groupRepository)
+	friendshipUsecase := friendshipUC.NewFriendshipUsecase(
+		userRepository,
+		friendshipRepository,
+		groupRepository,
+		notificationRepository,
+	)
+
 	friendshipHandler := friendshipDelivery.NewFriendshipHandler(friendshipUsecase)
+	userHandler := userDelivery.NewUserHanlder()
 
 	router.HandleFunc("/api/friend-request", friendshipHandler.SendFriendRequest).Methods("POST")
 	router.HandleFunc("/api/accept-friend-request", friendshipHandler.AcceptFriendRequest).Methods("POST")
 	router.HandleFunc("/api/decline-friend-request", friendshipHandler.DeclineFriendRequest).Methods("POST")
 	router.HandleFunc("/api/pending-requests", friendshipHandler.GetPendingRequests).Methods("GET")
 	router.HandleFunc("/api/friend-list", friendshipHandler.GetFriendList).Methods("GET")
+	router.HandleFunc("/api/info", userHandler.InfoHandler).Methods("GET")
 
 	fmt.Println("HTTP сервер запущен на порту :8083")
 	log.Fatal(http.ListenAndServe(":8083", router))

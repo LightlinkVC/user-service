@@ -2,38 +2,48 @@ package usecase
 
 import (
 	"fmt"
+	"strconv"
 
-	"github.com/lightlink/user-service/internal/friendship/domain/dto"
+	friendshipDTO "github.com/lightlink/user-service/internal/friendship/domain/dto"
 	friendshipEntity "github.com/lightlink/user-service/internal/friendship/domain/entity"
 	friendshipRepository "github.com/lightlink/user-service/internal/friendship/repository"
 	groupEntity "github.com/lightlink/user-service/internal/group/domain/entity"
 	groupRepository "github.com/lightlink/user-service/internal/group/repository"
+	notificationDTO "github.com/lightlink/user-service/internal/notification/domain/dto"
+	notificationRepository "github.com/lightlink/user-service/internal/notification/repository"
 	userRepository "github.com/lightlink/user-service/internal/user/repository"
 )
 
 type FriendshipUsecaseI interface {
-	Create(senderID uint, friendRequest *dto.FriendRequest) (*friendshipEntity.Friendship, error)
-	Accept(senderID uint, friendRespond *dto.RespondFriendRequest) (*friendshipEntity.Friendship, error)
-	Decline(senderID uint, friendRespond *dto.RespondFriendRequest) (*friendshipEntity.Friendship, error)
+	Create(senderID uint, friendRequest *friendshipDTO.FriendRequest) (*friendshipEntity.Friendship, error)
+	Accept(senderID uint, friendRespond *friendshipDTO.RespondFriendRequest) (*friendshipEntity.Friendship, error)
+	Decline(senderID uint, friendRespond *friendshipDTO.RespondFriendRequest) (*friendshipEntity.Friendship, error)
 	GetPendingRequests(userID uint) ([]*friendshipEntity.Friendship, error)
 	GetFriendList(userID uint) ([]*friendshipEntity.Friendship, error)
 }
 
 type FriendshipUsecase struct {
-	userRepo       userRepository.UserRepositoryI
-	friendshipRepo friendshipRepository.FriendshipRepositoryI
-	groupRepo      groupRepository.GroupRepositoryI
+	userRepo         userRepository.UserRepositoryI
+	friendshipRepo   friendshipRepository.FriendshipRepositoryI
+	groupRepo        groupRepository.GroupRepositoryI
+	notificationRepo notificationRepository.NotificationRepositoryI
 }
 
-func NewFriendshipUsecase(userRepo userRepository.UserRepositoryI, friendshipRepo friendshipRepository.FriendshipRepositoryI, groupRepo groupRepository.GroupRepositoryI) *FriendshipUsecase {
+func NewFriendshipUsecase(
+	userRepo userRepository.UserRepositoryI,
+	friendshipRepo friendshipRepository.FriendshipRepositoryI,
+	groupRepo groupRepository.GroupRepositoryI,
+	notificationRepo notificationRepository.NotificationRepositoryI,
+) *FriendshipUsecase {
 	return &FriendshipUsecase{
-		userRepo:       userRepo,
-		friendshipRepo: friendshipRepo,
-		groupRepo:      groupRepo,
+		userRepo:         userRepo,
+		friendshipRepo:   friendshipRepo,
+		groupRepo:        groupRepo,
+		notificationRepo: notificationRepo,
 	}
 }
 
-func (uc *FriendshipUsecase) Create(senderID uint, friendRequest *dto.FriendRequest) (*friendshipEntity.Friendship, error) {
+func (uc *FriendshipUsecase) Create(senderID uint, friendRequest *friendshipDTO.FriendRequest) (*friendshipEntity.Friendship, error) {
 	receiverUser, err := uc.userRepo.GetByUsername(friendRequest.ReceiverUseraname)
 	if err != nil {
 		return nil, err
@@ -56,10 +66,18 @@ func (uc *FriendshipUsecase) Create(senderID uint, friendRequest *dto.FriendRequ
 		return nil, err
 	}
 
+	uc.notificationRepo.Send(notificationDTO.RawNotification{
+		Type: "friendRequest",
+		Payload: map[string]interface{}{
+			"from_user_id": strconv.FormatUint(uint64(senderID), 10),
+			"to_user_id":   strconv.FormatUint(uint64(receiverUser.ID), 10),
+		},
+	})
+
 	return friendshipEntity, nil
 }
 
-func (uc *FriendshipUsecase) Accept(senderID uint, friendRespond *dto.RespondFriendRequest) (*friendshipEntity.Friendship, error) {
+func (uc *FriendshipUsecase) Accept(senderID uint, friendRespond *friendshipDTO.RespondFriendRequest) (*friendshipEntity.Friendship, error) {
 	fmt.Println("sender_id: ", senderID)
 	fmt.Println("receiver_id: ", friendRespond.ReceiverID)
 	receiverUser, err := uc.userRepo.GetById(friendRespond.ReceiverID)
@@ -110,7 +128,7 @@ func (uc *FriendshipUsecase) Accept(senderID uint, friendRespond *dto.RespondFri
 	return friendship, nil
 }
 
-func (uc *FriendshipUsecase) Decline(senderID uint, friendRespond *dto.RespondFriendRequest) (*friendshipEntity.Friendship, error) {
+func (uc *FriendshipUsecase) Decline(senderID uint, friendRespond *friendshipDTO.RespondFriendRequest) (*friendshipEntity.Friendship, error) {
 	receiverUser, err := uc.userRepo.GetById(friendRespond.ReceiverID)
 	if err != nil {
 		return nil, err

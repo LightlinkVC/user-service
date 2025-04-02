@@ -70,13 +70,17 @@ func (repo *FriendshipPostgresRepository) Update(friendship *entity.Friendship) 
 	return &friendshipModel, nil
 }
 
+/*TODO Test fix request*/
 func (repo *FriendshipPostgresRepository) GetPendingRequests(userID uint) ([]*entity.Friendship, error) {
 	rows, err := repo.DB.Query(
 		`SELECT user1_id, user2_id, fs.name, action_user_id
 		FROM friendships f
 		JOIN friendship_statuses fs ON f.status_id = fs.id
-		WHERE f.action_user_id <> $1 AND fs.name = $2`,
-		userID, "pending",
+		WHERE fs.name = $1 AND (
+			(f.user1_id = $2 AND f.user2_id <> $2) OR
+			(f.user2_id = $2 AND f.user1_id <> $2)
+		)`,
+		"pending", userID,
 	)
 	if err != nil {
 		return nil, err
