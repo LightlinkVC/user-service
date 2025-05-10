@@ -18,8 +18,8 @@ type FriendshipUsecaseI interface {
 	Create(senderID uint, friendRequest *friendshipDTO.FriendRequest) (*friendshipEntity.Friendship, error)
 	Accept(senderID uint, friendRespond *friendshipDTO.RespondFriendRequest) (*friendshipEntity.Friendship, error)
 	Decline(senderID uint, friendRespond *friendshipDTO.RespondFriendRequest) (*friendshipEntity.Friendship, error)
-	GetPendingRequests(userID uint) ([]*friendshipEntity.Friendship, error)
-	GetFriendList(userID uint) ([]*friendshipEntity.Friendship, error)
+	GetPendingRequests(userID uint) ([]*friendshipEntity.FriendMeta, error)
+	GetFriendList(userID uint) ([]*friendshipEntity.FriendMeta, error)
 }
 
 type FriendshipUsecase struct {
@@ -154,7 +154,7 @@ func (uc *FriendshipUsecase) Decline(senderID uint, friendRespond *friendshipDTO
 	return friendshipEntity, nil
 }
 
-func (uc *FriendshipUsecase) GetPendingRequests(userID uint) ([]*friendshipEntity.Friendship, error) {
+func (uc *FriendshipUsecase) GetPendingRequests(userID uint) ([]*friendshipEntity.FriendMeta, error) {
 	pendingRequests, err := uc.friendshipRepo.GetPendingRequests(userID)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (uc *FriendshipUsecase) GetPendingRequests(userID uint) ([]*friendshipEntit
 	return pendingRequests, nil
 }
 
-func (uc *FriendshipUsecase) GetFriendList(userID uint) ([]*friendshipEntity.Friendship, error) {
+func (uc *FriendshipUsecase) GetFriendList(userID uint) ([]*friendshipEntity.FriendMeta, error) {
 	friendList, err := uc.friendshipRepo.GetFriendList(userID)
 	if err != nil {
 		return nil, err

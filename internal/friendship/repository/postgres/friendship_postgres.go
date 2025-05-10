@@ -71,53 +71,65 @@ func (repo *FriendshipPostgresRepository) Update(friendship *entity.Friendship) 
 }
 
 /*TODO Test fix request*/
-func (repo *FriendshipPostgresRepository) GetPendingRequests(userID uint) ([]*entity.Friendship, error) {
-	rows, err := repo.DB.Query(
-		`SELECT user1_id, user2_id, fs.name, action_user_id
+func (repo *FriendshipPostgresRepository) GetPendingRequests(userID uint) ([]*entity.FriendMeta, error) {
+	rows, err := repo.DB.Query(`
+		SELECT 
+			CASE 
+				WHEN f.user1_id = $1 THEN f.user2_id
+				ELSE f.user1_id
+			END AS friend_id,
+			u.username
 		FROM friendships f
 		JOIN friendship_statuses fs ON f.status_id = fs.id
-		WHERE fs.name = $1 AND (
-			(f.user1_id = $2 AND f.user2_id <> $2) OR
-			(f.user2_id = $2 AND f.user1_id <> $2)
-		)`,
-		"pending", userID,
-	)
+		JOIN users u ON u.id = CASE 
+								WHEN f.user1_id = $1 THEN f.user2_id
+								ELSE f.user1_id
+							  END
+		WHERE 
+			fs.name = 'pending'
+			AND (f.user1_id = $1 OR f.user2_id = $1)
+			AND f.action_user_id != $1
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			fmt.Println("Error GetPendingRequests reading rows")
-		}
-	}()
+	defer rows.Close()
 
-	pendingRequests := []*entity.Friendship{}
+	pendingRequests := []*entity.FriendMeta{}
 	for rows.Next() {
-		currentPengingRequest := &entity.Friendship{}
+		var req entity.FriendMeta
 		err := rows.Scan(
-			&currentPengingRequest.User1ID,
-			&currentPengingRequest.User2ID,
-			&currentPengingRequest.StatusName,
-			&currentPengingRequest.ActionUserID,
+			&req.UserID,
+			&req.Username,
 		)
 		if err != nil {
-			fmt.Println("Failed to select pending requests")
 			return nil, err
 		}
-
-		pendingRequests = append(pendingRequests, currentPengingRequest)
+		pendingRequests = append(pendingRequests, &req)
 	}
 
 	return pendingRequests, nil
 }
 
-func (repo *FriendshipPostgresRepository) GetFriendList(userID uint) ([]*entity.Friendship, error) {
+func (repo *FriendshipPostgresRepository) GetFriendList(userID uint) ([]*entity.FriendMeta, error) {
 	rows, err := repo.DB.Query(
-		`SELECT user1_id, user2_id, fs.name, action_user_id
+		`SELECT 
+			CASE 
+				WHEN f.user1_id = $1 THEN f.user2_id 
+				ELSE f.user1_id 
+			END AS friend_id,
+			u.username
 		FROM friendships f
 		JOIN friendship_statuses fs ON f.status_id = fs.id
-		WHERE (f.user1_id = $1 OR f.user2_id = $1) AND fs.name = $2`,
-		userID, "accepted",
+		JOIN users u ON u.id = CASE 
+								WHEN f.user1_id = $1 THEN f.user2_id 
+								ELSE f.user1_id 
+							END
+		WHERE 
+			(f.user1_id = $1 OR f.user2_id = $1) 
+			AND fs.name = 'accepted';
+		`,
+		userID,
 	)
 	if err != nil {
 		return nil, err
@@ -128,14 +140,12 @@ func (repo *FriendshipPostgresRepository) GetFriendList(userID uint) ([]*entity.
 		}
 	}()
 
-	friendList := []*entity.Friendship{}
+	friendList := []*entity.FriendMeta{}
 	for rows.Next() {
-		currentFriendRecord := &entity.Friendship{}
+		currentFriendRecord := &entity.FriendMeta{}
 		err := rows.Scan(
-			&currentFriendRecord.User1ID,
-			&currentFriendRecord.User2ID,
-			&currentFriendRecord.StatusName,
-			&currentFriendRecord.ActionUserID,
+			&currentFriendRecord.UserID,
+			&currentFriendRecord.Username,
 		)
 		if err != nil {
 			fmt.Println("Failed to select friend list")

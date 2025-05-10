@@ -6,3 +6,8 @@ type Friendship struct {
 	StatusName   string `json:"status_name"`
 	ActionUserID uint   `json:"action_user_id"`
 }
+
+type FriendMeta struct {
+	UserID   uint   `json:"user_id"`
+	Username string `json:"username"`
+}
