@@ -4,8 +4,11 @@ import (
 	"context"
 
 	"github.com/lightlink/user-service/internal/user/domain/dto"
+	"github.com/lightlink/user-service/internal/user/domain/entity"
 	"github.com/lightlink/user-service/internal/user/usecase"
 	proto "github.com/lightlink/user-service/protogen/user"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UserService struct {
@@ -43,6 +46,9 @@ func (us *UserService) GetUserById(ctx context.Context, getRequest *proto.GetUse
 
 func (us *UserService) GetUserByUsername(ctx context.Context, getRequest *proto.GetUserByUsernameRequest) (*proto.GetUserResponse, error) {
 	userEntity, err := us.userUC.GetByUsername(getRequest.Username)
+	if err == entity.ErrIsNotExist {
+		return nil, status.Error(codes.NotFound, entity.ErrIsNotExist.Error())
+	}
 	if err != nil {
 		return nil, err
 	}

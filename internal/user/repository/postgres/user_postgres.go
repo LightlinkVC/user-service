@@ -63,7 +63,7 @@ func (repo *UserPostgresRepository) GetByUsername(username string) (*model.User,
 		QueryRow("SELECT id, username, password_hash FROM users WHERE username = $1", username).
 		Scan(&user.ID, &user.Username, &user.PasswordHash)
 	if err == sql.ErrNoRows {
-		return nil, status.Error(codes.NotFound, "can't find such user")
+		return nil, entity.ErrIsNotExist
 	} else if err != nil {
 		return nil, err
 	}

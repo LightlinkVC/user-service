@@ -9,6 +9,7 @@ import (
 
 	"github.com/lightlink/user-service/internal/friendship/domain/dto"
 	"github.com/lightlink/user-service/internal/friendship/usecase"
+	userEntity "github.com/lightlink/user-service/internal/user/domain/entity"
 )
 
 type FriendshipHandler struct {
@@ -54,6 +55,12 @@ func (h *FriendshipHandler) SendFriendRequest(w http.ResponseWriter, r *http.Req
 	userID := uint(userID64)
 
 	_, err = h.friendshipUC.Create(userID, friendRequest)
+	if err == userEntity.ErrIsNotExist {
+		/*Handle*/
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Println(err)
+		return
+	}
 	if err != nil {
 		/*Handle*/
 		fmt.Println(err)
