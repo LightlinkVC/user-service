@@ -1,0 +1,37 @@
+version: '3.7'
+
+networks:
+  user_service_network:
+
+services:
+  user_service:
+    container_name: user_service
+    env_file:
+      - ../cmd/.env
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8081:8081"
+      - "8083:8083"
+    networks:
+      - user_service_network
+  
+  user_service_postgres:
+    container_name: user_service_postgres
+    image: postgres:17-alpine
+    volumes:
+      - ../scripts/sql/:/docker-entrypoint-initdb.d/  
+      - user_service_postgres_data:/var/lib/postgresql/data
+    env_file:
+      - ../cmd/.env
+    ports:
+      - "5432:5432"
+    expose:
+      - 5432
+    networks:
+      - user_service_network
+
+volumes:
+  user_service_postgres_data:
+    driver: "local"
